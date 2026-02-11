@@ -1,5 +1,6 @@
 import numpy as np
 from numpy import pi as PI
+from scipy.special import kv as besselk
 
 VERBOSE_FIG = 0
 FLAG_SKEMPTON = 1
@@ -33,11 +34,12 @@ nw_proc = 300
 wvec_proc = wvec_org[0:nw_proc]
 
 f0 = 200
-delay = 1/(f0**2)
-
+delay = 1/f0*2
 Ricker = 2*PI**2*f0**2*(1.0 - 2.0*(PI**2)*(f0**2)*((tvec-delay)**2))*np.exp(-(PI**2)*(f0**2)*((tvec-delay)**2))
+Ricker = 2 * np.pi**2 * f0**2 * (1.0 - 2.0 * (np.pi**2) * (f0**2) * ((tvec - delay)**2)) * np.exp(-(np.pi**2) * (f0**2) * ((tvec - delay)**2))
 Ricker = Ricker/np.max(np.abs(Ricker))
 fRicker = np.conj(np.fft.fft(Ricker))
+
 
 shift_z = 0
 zn_proc = zn_org + shift_z
@@ -85,4 +87,88 @@ for iw in range(1, nw_proc):
     U1=MT[0,1]/MT[1,1]*D1
 
     uEvec_allfreq[:,:,iw]=uEvec
-    print(uEvec_allfreq[:,:,iw])
+
+fdata = np.zeros((zvec_rec.size, ns), dtype=np.complex128)
+
+
+for irec in range(zvec_rec.size):
+    znow = zvec_rec[irec] + shift_z
+
+    tmp = zn_proc - znow
+    tmp[tmp<0] = np.inf
+    tmp1 = np.min(tmp)
+    tmp2 = np.argmin(tmp)
+    in_now = tmp2
+
+    if(np.sum((tmp == np.inf)) == tmp.size):
+        in_now = zn_proc.size
+
+    U_amp = np.squeeze(uEvec_allfreq[0, in_now, :])  
+    D_amp = np.squeeze(uEvec_allfreq[1, in_now, :])  
+
+    kpvec = wvec_proc / Vpvec[in_now]
+
+    phi = U_amp.T * np.exp(-1j * kpvec * znow) + D_amp.T * np.exp(1j * kpvec * znow)
+
+    tmpdata = -1j * kpvec * U_amp.T * np.exp(-1j * kpvec * znow) + 1j * kpvec * D_amp.T * np.exp(1j * kpvec * znow)  # displacement (uz)
+    tmpdata = -1j * wvec_proc * tmpdata  # particle velocity (vz)
+
+    tmpdata = tmpdata * fRicker[:nw_proc]  # Note: Unit incident wave is assumed in potential (see the phase difference between phi and tmpdata above)
+    fdata[irec, :nw_proc] = tmpdata
+    #fdata[irec, -nw_proc:] = np.conj(tmpdata)
+
+fdata[:, 0] = 0
+fdata = np.conj(fdata)  
+fdata[:, 1:] = fdata[:, 1:] + np.conj(np.flip(fdata[:, 1:], axis=1)) #tour de passe-passe pour avoir la symétrie des données 
+data = (np.fft.ifft(fdata, axis=1)).real
+data_E = data.T
+
+# Necessary elastic moduli and velocities
+Evec = Rhovec * Vsvec**2 * (3 * Vpvec**2 - 4 * Vsvec**2) / (Vpvec**2 - Vsvec**2)
+mu_vec = Rhovec * Vsvec**2  
+lambda_vec = Rhovec * Vpvec**2 - 2 * mu_vec
+Kvec = lambda_vec + 2/3 * mu_vec  
+CT0vec = np.sqrt(Vf**2 / (1 + Rhof * Vf**2 / (Rhovec * Vsvec**2)))  
+
+# Porous-layer effects: Diffusivity (Ionov, eq. A3)
+Diffvec = np.sqrt(Kappa0_vec * Kf / (nu_dyn * Phivec))
+TFvec = rn**2 / Diffvec**2  
+
+
+uvec_allfreq = np.zeros((2, n, nw_proc))
+
+Cy2vec = Evec/Rhof
+
+for iw in range(1, nw_proc):
+    w = wvec_proc[iw]
+    kp = w/Vpvec
+
+    tmp = np.sqrt(1j*w*TFvec)
+    PHI_IONOV = (1/tmp) * besselk(1, tmp) / besselk(0, tmp)
+
+    CTvec = CT0vec * np.sqrt(1/(1+2*Phivec*Rhof/Kf*CT0vec**2 * PHI_IONOV))
+
+    CTvec[Kappa0_vec == 0] = CT0vec[Kappa0_vec == 0]
+    CTvec = np.conj(CTvec)
+
+    kn = w/CTvec
+
+    Mn = np.zeros((2, 2, n-1), dtype=np.complex128)
+    for i_n in range(n-1):
+        r1=rn[i_n]
+        r2=rn[i_n+1]
+        k1=kn[i_n]
+        k2=kn[i_n+1]
+        z1=zn_proc[i_n]
+ 
+        a1=r1**2*k1+r2**2*k2
+        a2=r1**2*k1-r2**2*k2
+        
+        m11=a1*np.exp(1j*(k1-k2)*z1) 
+        m12=a2*np.exp(1j*(k1+k2)*z1) 
+        m21=a2*np.exp(-1j*(k1+k2)*z1) 
+        m22=a1*np.exp(-1j*(k1-k2)*z1) 
+
+        Mn[:,:,i_n]=1/(2*r1**2*k1)*np.array([[m11, m12], [m21, m22]])
+
+    Sn = np.zeros((2, n-1))
