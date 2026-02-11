@@ -172,3 +172,49 @@ for iw in range(1, nw_proc):
         Mn[:,:,i_n]=1/(2*r1**2*k1)*np.array([[m11, m12], [m21, m22]])
 
     Sn = np.zeros((2, n-1))
+    for i_n in range(n-1):      
+        r1 = rn[i_n]
+        r2 = rn[i_n+1]
+        k1 = kn[i_n]
+        z1 = zn_proc[i_n]
+        
+        kp1 = kp[i_n]
+        Cy_square = Cy2vec[i_n]
+        E1 = Evec[i_n]
+        Vp_now = Vpvec[i_n]
+        Vs_now = Vsvec[i_n]
+        CT_now = CTvec[i_n]
+        Porosity_now = Phivec[i_n]
+        PHI_IONOV_now = np.conj(PHI_IONOV[i_n]) 
+        K_now = Kvec[i_n] 
+
+        if i_n == 1 :
+            I1 = 0
+            I2 = 0
+            I3 = 0
+            I4 = 0
+        else :
+            z0 = zn_proc[i_n-1]
+            I1 = np.exp(1j*k1*z1)/1j/(-k1+kp1)*(np.exp(1j*(-k1+kp1)*z1)-np.exp(1j*(-k1+kp1)*z0))-np.exp(-1j*k1*z1)/1j/(k1+kp1)*(np.exp(1j*(k1+kp1)*z1)-np.exp(1j*(k1+kp1)*z0))
+            I2 = np.exp(1j*k1*z1)/1j/(-k1-kp1)*(np.exp(1j*(-k1-kp1)*z1)-np.exp(1j*(-k1-kp1)*z0))-np.exp(-1j*k1*z1)/1j/(k1-kp1)*(np.exp(1j*(k1-kp1)*z1)-np.exp(1j*(k1-kp1)*z0))
+            I3 = np.exp(1j*k1*z1)/1j/(-k1+kp1)*(np.exp(1j*(-k1+kp1)*z1)-np.exp(1j*(-k1+kp1)*z0))+np.exp(-1j*k1*z1)/1j/(k1+kp1)*(np.exp(1j*(k1+kp1)*z1)-np.exp(1j*(k1+kp1)*z0))
+            I4 = np.exp(1j*k1*z1)/1j/(-k1-kp1)*(np.exp(1j*(-k1-kp1)*z1)-np.exp(1j*(-k1-kp1)*z0))+np.exp(-1j*k1*z1)/1j/(k1-kp1)*(np.exp(1j*(k1-kp1)*z1)-np.exp(1j*(k1-kp1)*z0))
+
+        U_Eamp = np.squeeze(uEvec_allfreq[0,i_n,iw]) 
+        D_Eamp = np.squeeze(uEvec_allfreq[1,i_n,iw]) 
+
+        A1P = w**2/kp1*(1/(2*Vs_now**2)-1/Vp_now**2)
+        delta_p_A = -1j*w*Rhof*CT_now*kp1*A1P*(D_Eamp*I1+U_Eamp*I2)
+        delta_vz_A = -1j*w*kp1*A1P*(D_Eamp*I3+U_Eamp*I4)
+
+        if (Kappa0_vec[i_n] !=0):
+            delta_p_B = Rhof*CT_now*(-1j*w*Porosity_now/Kf*PHI_IONOV_now)*w**2/Vp_now**2*K_now*(D_Eamp*I1+U_Eamp*I2)
+            delta_vz_B = (-1j*w*Porosity_now/Kf*PHI_IONOV_now)*w**2/Vp_now**2*K_now*(D_Eamp*I3+U_Eamp*I4)
+            
+            #TODO : traduire le fichier sur skempton 
+            #if(FLAG_SKEMPTON):
+            #    B = PE.B
+            #    delta_p_B = B*delta_p_B
+            #    delta_vz_B = B*delta_vz_B   
+        delta_p_B = 0
+        delta_vz_B = 0             
