@@ -135,7 +135,7 @@ Diffvec = np.sqrt(Kappa0_vec * Kf / (nu_dyn * Phivec))
 TFvec = rn**2 / Diffvec**2  
 
 
-uvec_allfreq = np.zeros((2, n, nw_proc))
+uvec_allfreq = np.zeros((2, n, nw_proc), dtype=np.complex128)
 
 Cy2vec = Evec/Rhof
 
@@ -171,7 +171,7 @@ for iw in range(1, nw_proc):
 
         Mn[:,:,i_n]=1/(2*r1**2*k1)*np.array([[m11, m12], [m21, m22]])
 
-    Sn = np.zeros((2, n-1))
+    Sn = np.zeros((2, n-1), dtype=np.complex128)
     for i_n in range(n-1):      
         r1 = rn[i_n]
         r2 = rn[i_n+1]
@@ -188,7 +188,7 @@ for iw in range(1, nw_proc):
         PHI_IONOV_now = np.conj(PHI_IONOV[i_n]) 
         K_now = Kvec[i_n] 
 
-        if i_n == 1 :
+        if i_n == 0 : #gneu gneu les indices sont shiftés de 1
             I1 = 0
             I2 = 0
             I3 = 0
@@ -217,4 +217,79 @@ for iw in range(1, nw_proc):
             #    delta_p_B = B*delta_p_B
             #    delta_vz_B = B*delta_vz_B   
         delta_p_B = 0
-        delta_vz_B = 0             
+        delta_vz_B = 0           
+        
+        #Une seule occurence de Aninv dans le code : inutile
+        #Aninv = [np.exp(i*k1*z1)/(2*w^2*Rhof) -np.exp(i*k1*z1)/(2*w*pi*r1^2*k1) np.exp(-i*k1*z1)/(2*w^2*Rhof) np.exp(-i*k1*z1)/(2*w*pi*r1^2*k1)] 
+
+    
+        
+        tmpdata = -1j*kp1*U_Eamp.T * np.exp(-1j*kp1*z1)+1j*kp1*D_Eamp.T*np.exp(1j*kp1*z1) 
+        tmpdata = -1j*w*tmpdata 
+        
+        
+        dVn = PI*(r2**2-r1**2)*tmpdata  
+        dvz = dVn/(PI*r1**2) 
+                           
+        dp_total = delta_p_A+delta_p_B
+        dvz_total = delta_vz_A+delta_vz_B+dvz
+        
+        
+        Sn[:, i_n] = 1/(2*Rhof*w**2*k1)*np.array([(Rhof*w*dvz_total-k1*dp_total)*np.exp(1j*k1*z1), -(Rhof*w*dvz_total+k1*dp_total)*np.exp(-1j*k1*z1)])
+
+    MT = np.eye(2)
+    ST = np.zeros(2)
+    for i_n in range(n-1):
+        ST = ST+MT@Sn[:,i_n]
+        MT = MT@Mn[:,:,i_n]    
+
+    uvec = np.zeros((2,n), dtype=np.complex128)
+    D_Eamp = np.squeeze(uEvec_allfreq[1,n-1,iw]) 
+    z0 = zn_proc[n-2]
+    k1 = kn[n-1]
+    kp1 = kp[n-1]
+    Vp_now = Vpvec[n-1]
+    Vs_now = Vsvec[n-1]
+    CT_now = CTvec[n-1]
+    I1 = 2*k1/1j/(kp1**2-k1**2)*(np.exp(1j*kp1*z0))
+    I3 = 2*kp1/1j/(kp1**2-k1**2)*(np.exp(1j*kp1*z0))
+
+
+    A1P = w**2/kp1*(1/(2*Vs_now**2)-1/Vp_now**2)
+    delta_p_A = -1j*w*Rhof*CT_now*kp1*A1P*(D_Eamp*I1)
+    delta_vz_A = -1j*w*kp1*A1P*(D_Eamp*I3)
+    
+    Un = np.exp(1j*k1*z0)/(2*Rhof*w**2*k1)*(k1*delta_p_A-Rhof*w*delta_vz_A)
+
+    D_Eamp = np.squeeze(uEvec_allfreq[1,0,iw]) 
+    U_Eamp = np.squeeze(uEvec_allfreq[0,0,iw]) 
+    
+    
+    z1 = zn_proc[0]
+    k1 = kn[0]
+    kp1 = kp[0]
+    Vp_now = Vpvec[0]
+    Vs_now = Vsvec[0]
+    CT_now = CTvec[0]
+
+    
+    I1 = 2*k1/1j/(kp1**2-k1**2)*(np.exp(1j*kp1*z1))
+    I2 = 2*k1/1j/(kp1**2-k1**2)*(np.exp(-1j*kp1*z1))
+    I3 = 2*kp1/1j/(kp1**2-k1**2)*(np.exp(1j*kp1*z1))
+    I4 = -2*kp1/1j/(kp1**2-k1**2)*(np.exp(-1j*kp1*z1))
+
+    A1P = w**2/kp1*(1/(2*Vs_now**2)-1/Vp_now**2)
+    delta_p_A = -1j*w*Rhof*CT_now*kp1*A1P*(D_Eamp*I1+U_Eamp*I2)
+    delta_vz_A = -1j*w*kp1*A1P*(D_Eamp*I3+U_Eamp*I4)
+    
+    
+    D1 = np.exp(-1j*k1*z1)/(2*Rhof*w**2*k1)*(k1*delta_p_A+Rhof*w*delta_vz_A)
+    Dn = (D1-MT[1,0]*Un-ST[1])/MT[1, 1]
+    U1 = MT[0, 0]*Un+MT[0, 1]/MT[1, 1]*(D1-MT[1, 0]*Un-ST[1])+ST[0]
+    print(ST[1])
+    uvec[:,n-1] = np.array([Un, Dn])
+
+    for i_n in range(n-2, -1, -1):
+        uvec[:,i_n] = Mn[:,:,i_n]@uvec[:,i_n+1]+Sn[:,i_n]      
+
+    uvec_allfreq[:,:,iw] = uvec
