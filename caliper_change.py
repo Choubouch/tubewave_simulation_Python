@@ -293,3 +293,138 @@ for iw in range(1, nw_proc):
         uvec[:,i_n] = Mn[:,:,i_n]@uvec[:,i_n+1]+Sn[:,i_n]      
 
     uvec_allfreq[:,:,iw] = uvec
+
+fdata = np.zeros((zvec_rec.size , ns), dtype=np.complex128)
+
+for irec in range(zvec_rec.size) :
+    znow = zvec_rec[irec]+shift_z
+    
+    #Detecting a layer number
+    tmp = zn_proc-znow
+    tmp[tmp<0] = np.inf
+    tmp1 = np.min(tmp)
+    tmp2 = np.argmin(tmp)
+    in_now = tmp2
+    if(sum(tmp==np.inf) == tmp.size):
+        in_now = (zn_proc.size) #last layer
+    
+
+    
+    U_amp = np.squeeze(uvec_allfreq[0,in_now,:]) #upgoing,layer in_now
+    D_amp = np.squeeze(uvec_allfreq[1,in_now,:]) #downgoing,layer in_now
+
+
+    if(Kappa0_vec[in_now] != 0):
+        
+        #Porous layer effects: Calculating the function PHI of Ionov
+        #   and correponding tube-wave velocities
+        #Note: all variables related to the porous layer assumes MATLAB-FT
+        tmp = np.sqrt(1j*wvec_proc*TFvec[in_now]) #be carefull INF when kappa0 = 0
+        PHI_IONOV = tmp**(-1)*besselk(1,tmp)/besselk(0,tmp) #be careful NaN when kappa0 = 0
+
+        #Tube-wave velocity including the porous-layer effects
+        CTvec = CT0vec[in_now]*np.sqrt(1/(1+2*Phivec[in_now]*Rhof/Kf*CT0vec[in_now]**2*PHI_IONOV)) #this is a frequency-vector version.
+
+        
+        CTvec = np.conj(CTvec) #MATLAB FT -> Aki-Richards FT
+        
+        kcvec = wvec_proc/CTvec
+    else :
+        kcvec = wvec_proc/CT0vec[in_now]
+    
+    
+
+    phi = U_amp.T*np.exp(-1j*kcvec*znow)+D_amp.T*np.exp(1j*kcvec*znow) #displacement potential (note: kc homogenous)
+    tmpdata = Rhof*wvec_proc**2*phi #pressure
+                                 
+    
+    #Evalauting the discontinuities (delta_p and delta_vz)
+    #due to external effective stress.
+    #Note:multiple-freq vector version    
+    #I am at z1 = zvec(irec). z0 is the nearest boundary in the negative z direction
+    
+    
+    if(in_now == 1):
+        z1 = znow 
+        z0 = zn_proc[0]
+    elif(in_now == n):
+        z1 = znow 
+        z0 = zn_proc[n-1]        
+    else :
+        z1 = znow 
+        z0 = zn_proc[in_now-1]
+        
+    
+    #I am at in = in_now
+    k1vec = kcvec    
+    kp1vec = wvec_proc/Vpvec[in_now]
+    Cy_square = Cy2vec[in_now]
+    E1 = Evec[in_now]
+    Vp_now = Vpvec[in_now]
+    Vs_now = Vsvec[in_now]
+
+
+    #Integration element I1:
+    I1 = np.exp(1j*k1vec*z1)/1j/(-k1vec+kp1vec)*(np.exp(1j*(-k1vec+kp1vec)*z1)-np.exp(1j*(-k1vec+kp1vec)*z0))
+    -np.exp(-1j*k1vec*z1)/1j/(k1vec+kp1vec)*(np.exp(1j*(k1vec+kp1vec)*z1)-np.exp(1j*(k1vec+kp1vec)*z0))
+    #Integration element I2:
+    I2 = np.exp(1j*k1vec*z1)/1j/(-k1vec-kp1vec)*(np.exp(1j*(-k1vec-kp1vec)*z1)-np.exp(1j*(-k1vec-kp1vec)*z0))
+    -np.exp(-1j*k1vec*z1)/1j/(k1vec-kp1vec)*(np.exp(1j*(k1vec-kp1vec)*z1)-np.exp(1j*(k1vec-kp1vec)*z0))
+    #Integration element I3:
+    I3 = np.exp(1j*k1vec*z1)/1j/(-k1vec+kp1vec)*(np.exp(1j*(-k1vec+kp1vec)*z1)-np.exp(1j*(-k1vec+kp1vec)*z0))
+    +np.exp(-1j*k1vec*z1)/1j/(k1vec+kp1vec)*(np.exp(1j*(k1vec+kp1vec)*z1)-np.exp(1j*(k1vec+kp1vec)*z0))
+    #Integration element I4:
+    I4 = np.exp(1j*k1vec*z1)/1j/(-k1vec-kp1vec)*(np.exp(1j*(-k1vec-kp1vec)*z1)-np.exp(1j*(-k1vec-kp1vec)*z0))
+    +np.exp(-1j*k1vec*z1)/1j/(k1vec-kp1vec)*(np.exp(1j*(k1vec-kp1vec)*z1)-np.exp(1j*(k1vec-kp1vec)*z0))
+    
+    if(Kappa0_vec[in_now] != 0):
+        CT_now = CTvec #vector
+    else:
+        CT_now = CT0vec[in_now] #scalar
+                
+
+    #---the discontinuities (delta_p and delta_vz) due to elastic wave---
+    U_Eamp = np.squeeze(uEvec_allfreq[0,in_now,:]) #upgoing elastic wave,layer in_now
+    D_Eamp = np.squeeze(uEvec_allfreq[1,in_now,:]) #downgoing elastic wave,layer in_now
+    
+    U_Eamp = U_Eamp.T
+    D_Eamp = D_Eamp.T   
+
+    A1P = wvec_proc**2/kp1vec*(1/(2*Vs_now**2)-1/Vp_now**2)
+    delta_p_A = -1j*wvec_proc*Rhof*CT_now*kp1vec*A1P*(D_Eamp*I1+U_Eamp*I2)
+
+    #the discontinuities (delta_p and delta_vz) due to a porous layer 
+    #(PHI_IONOV_now from Aki-Richards FT)
+    if(Kappa0_vec[in_now] != 0):
+        Porosity_now = Phivec[in_now]                
+        K_now = Kvec[in_now]
+
+        delta_p_B = Rhof*CT_now*(-1j*wvec_proc*Porosity_now/Kf*np.conj(PHI_IONOV))*wvec_proc**2/Vp_now**2*K_now*(D_Eamp*I1+U_Eamp*I2) #BUGFIX
+    
+        ##Option B
+        if(FLAG_SKEMPTON):
+            continue
+                # The following two lines calculates the Skempton coefficient (B)
+                # assuming the given Vp and Vs to be those in the drained condition.
+                # This is not recommed.
+# $$$                 K_d = K_now #assuming Vp and Vs are drained
+# $$$                 B = 1-1/(1+Kf/(Porosity_now*K_d)) #skepmton coefficient
+                # The following line uses the Skempton coefficient (B) 
+                # provided in PE.B (recommed)
+                #TODO : comme le todo d'avant là
+                #B = PE.B
+                #Application of the Skempton coefficient (B)
+                #delta_p_B = B*delta_p_B
+    
+    else:  
+        delta_p_B = 0
+    
+    
+    
+    
+    tmpdata = tmpdata+delta_p_A+delta_p_B
+    tmpdata = tmpdata*fRicker[0:nw_proc] #Note: "Unit incident wave" is
+                                         # defined in elastic-wave potentials
+
+    
+    fdata[irec,0:nw_proc] = tmpdata
