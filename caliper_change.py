@@ -1,9 +1,11 @@
 import numpy as np
 from numpy import pi as PI
 from scipy.special import kv as besselk
+from matplotlib.pyplot import figure, plot, show, subplot, imshow, colorbar
+import matplotlib.pyplot as plt
 
 VERBOSE_FIG = 0
-FLAG_SKEMPTON = 1
+FLAG_SKEMPTON = 0
 
 
 #CONSTRUCTION OF LAYERED MODEL
@@ -22,7 +24,7 @@ Kf = Rhof*(Vf**2)
 Phivec = 0.3*np.ones(n)
 Kappa0_vec = np.zeros(n)
 
-zvec_rec = np.arange(-20.05, 20.05 + 0.1, 0.1)
+zvec_rec = np.arange(-100.05, 100.05 + 0.1, 0.1)
 dt = 0.25e-4
 ns = 16001
 
@@ -286,7 +288,6 @@ for iw in range(1, nw_proc):
     D1 = np.exp(-1j*k1*z1)/(2*Rhof*w**2*k1)*(k1*delta_p_A+Rhof*w*delta_vz_A)
     Dn = (D1-MT[1,0]*Un-ST[1])/MT[1, 1]
     U1 = MT[0, 0]*Un+MT[0, 1]/MT[1, 1]*(D1-MT[1, 0]*Un-ST[1])+ST[0]
-    print(ST[1])
     uvec[:,n-1] = np.array([Un, Dn])
 
     for i_n in range(n-2, -1, -1):
@@ -344,12 +345,12 @@ for irec in range(zvec_rec.size) :
     #I am at z1 = zvec(irec). z0 is the nearest boundary in the negative z direction
     
     
-    if(in_now == 1):
+    if(in_now == 0):
         z1 = znow 
         z0 = zn_proc[0]
-    elif(in_now == n):
+    elif(in_now == n-1):
         z1 = znow 
-        z0 = zn_proc[n-1]        
+        z0 = zn_proc[n-2]        
     else :
         z1 = znow 
         z0 = zn_proc[in_now-1]
@@ -365,17 +366,13 @@ for irec in range(zvec_rec.size) :
 
 
     #Integration element I1:
-    I1 = np.exp(1j*k1vec*z1)/1j/(-k1vec+kp1vec)*(np.exp(1j*(-k1vec+kp1vec)*z1)-np.exp(1j*(-k1vec+kp1vec)*z0))
-    -np.exp(-1j*k1vec*z1)/1j/(k1vec+kp1vec)*(np.exp(1j*(k1vec+kp1vec)*z1)-np.exp(1j*(k1vec+kp1vec)*z0))
+    I1 = np.exp(1j*k1vec*z1)/1j/(-k1vec+kp1vec)*(np.exp(1j*(-k1vec+kp1vec)*z1)-np.exp(1j*(-k1vec+kp1vec)*z0))-np.exp(-1j*k1vec*z1)/1j/(k1vec+kp1vec)*(np.exp(1j*(k1vec+kp1vec)*z1)-np.exp(1j*(k1vec+kp1vec)*z0))
     #Integration element I2:
-    I2 = np.exp(1j*k1vec*z1)/1j/(-k1vec-kp1vec)*(np.exp(1j*(-k1vec-kp1vec)*z1)-np.exp(1j*(-k1vec-kp1vec)*z0))
-    -np.exp(-1j*k1vec*z1)/1j/(k1vec-kp1vec)*(np.exp(1j*(k1vec-kp1vec)*z1)-np.exp(1j*(k1vec-kp1vec)*z0))
+    I2 = np.exp(1j*k1vec*z1)/1j/(-k1vec-kp1vec)*(np.exp(1j*(-k1vec-kp1vec)*z1)-np.exp(1j*(-k1vec-kp1vec)*z0))-np.exp(-1j*k1vec*z1)/1j/(k1vec-kp1vec)*(np.exp(1j*(k1vec-kp1vec)*z1)-np.exp(1j*(k1vec-kp1vec)*z0))
     #Integration element I3:
-    I3 = np.exp(1j*k1vec*z1)/1j/(-k1vec+kp1vec)*(np.exp(1j*(-k1vec+kp1vec)*z1)-np.exp(1j*(-k1vec+kp1vec)*z0))
-    +np.exp(-1j*k1vec*z1)/1j/(k1vec+kp1vec)*(np.exp(1j*(k1vec+kp1vec)*z1)-np.exp(1j*(k1vec+kp1vec)*z0))
+    I3 = np.exp(1j*k1vec*z1)/1j/(-k1vec+kp1vec)*(np.exp(1j*(-k1vec+kp1vec)*z1)-np.exp(1j*(-k1vec+kp1vec)*z0))+np.exp(-1j*k1vec*z1)/1j/(k1vec+kp1vec)*(np.exp(1j*(k1vec+kp1vec)*z1)-np.exp(1j*(k1vec+kp1vec)*z0))
     #Integration element I4:
-    I4 = np.exp(1j*k1vec*z1)/1j/(-k1vec-kp1vec)*(np.exp(1j*(-k1vec-kp1vec)*z1)-np.exp(1j*(-k1vec-kp1vec)*z0))
-    +np.exp(-1j*k1vec*z1)/1j/(k1vec-kp1vec)*(np.exp(1j*(k1vec-kp1vec)*z1)-np.exp(1j*(k1vec-kp1vec)*z0))
+    I4 = np.exp(1j*k1vec*z1)/1j/(-k1vec-kp1vec)*(np.exp(1j*(-k1vec-kp1vec)*z1)-np.exp(1j*(-k1vec-kp1vec)*z0))+np.exp(-1j*k1vec*z1)/1j/(k1vec-kp1vec)*(np.exp(1j*(k1vec-kp1vec)*z1)-np.exp(1j*(k1vec-kp1vec)*z0))
     
     if(Kappa0_vec[in_now] != 0):
         CT_now = CTvec #vector
@@ -425,6 +422,126 @@ for irec in range(zvec_rec.size) :
     tmpdata = tmpdata+delta_p_A+delta_p_B
     tmpdata = tmpdata*fRicker[0:nw_proc] #Note: "Unit incident wave" is
                                          # defined in elastic-wave potentials
-
-    
     fdata[irec,0:nw_proc] = tmpdata
+    
+    #input()
+    
+
+
+
+fdata[:,0] = 0
+fdata = np.conj(fdata); #Aki-Richards FT -> MATLAB FT
+fdata[:, 1:] = fdata[:, 1:] + np.conj(np.flip(fdata[:, 1:], axis=1)) #tour de passe-passe pour avoir la symétrie des données 
+data = (np.fft.ifft(fdata, axis=1)).real
+data_B = data.T
+#if(VERBOSE_FIG):
+#    figure;imagesc(zvec_rec,tvec,data_B);colorbar;
+#    title("Borehole response")
+#    xlabel('Receiver depth (m)');ylabel('Time (s)')
+
+
+#return
+
+##Comparison with analytical solutions
+print('Comparison with analytical solutions...')
+
+#Top
+Vp0 = Vpvec[0]
+Vs0 = Vsvec[0]
+Rho0 = Rhovec[0]
+r0 = rn[1]
+r1 = rn[2]
+
+
+VT0 = np.sqrt(Vf**2/(1+Rhof*Vf**2/(Rho0*Vs0**2)))
+
+iw = 40#dummy
+w = wvec_proc[iw]
+kp0 = wvec_proc[iw]/Vp0
+k0 = wvec_proc[iw]/VT0
+
+AP0 = wvec_proc[iw]**2/kp0*(1/(2*Vs0**2)-1/Vp0**2)
+
+#upper layer
+De0 = 1/(-Rhovec[1]*w**2) #unit amplitude in tzz
+p_direct0 = -Rhof*VT0*w*2*k0*kp0*AP0*De0/(kp0**2-k0**2)
+p_gen0 = -Rhof*VT0*w*kp0/(kp0**2-k0**2)*(r0**2-r1**2)/(r0**2+r1**2)*(2*AP0*kp0-k0**2+kp0**2)*De0
+#lower layer  =  upper layer
+
+delay_Haskel = -0.004
+
+#+-10.05m (pressure)
+irec_H1 = np.argwhere(abs(zvec_rec+10.05)<0.001)
+irec_H2 = np.argwhere(abs(zvec_rec-10.05)<0.001)
+
+#if(verbose_fig)
+#    figure;
+#    subplot(211),plot(tvec+delay_Haskel,data_B(:,irec_H1))
+#    hold on;plot([0.003 0.004],[1 1]*p_direct0,'k-','linewidth',2)
+#    hold on;plot([0.013 0.014],[1 1]*p_gen0,'k-','linewidth',2)
+#    xlabel('Lapse time (s)')
+#    ylabel('Pressure (Pa)')
+#    title('-10.05m')
+#    tmpa=axis;axis([0 0.02 -0.12 0.1])
+#    grid on;
+#    subplot(212),plot(tvec+delay_Haskel,data_B(:,irec_H2))
+#    hold on;plot([0.008 0.009],[1 1]*p_direct0,'k-','linewidth',2)
+#    hold on;plot([0.013 0.014],[1 1]*p_gen0,'k-','linewidth',2)
+#    xlabel('Lapse time (s)')
+#    ylabel('Pressure (Pa)')
+#    title('+10.05m')
+#    tmpa=axis;axis([0 0.02 -0.12 0.1])
+#    grid on;
+
+
+
+
+
+
+zn_org = np.array([-10, 0, 1]) # size n-1. The depth of boundaries (m). 
+rn = np.array([0.055, 0.055 ,0.065, 0.065]) #size n. Borehole radius (m)
+
+##final figure
+print('Output result is saved as Modeling_VSP_tubewave_Caliper_Change.png')
+
+
+#figure('Position')
+#print(data_B.shape)
+#for i in range(data_B.shape[0]):
+#    print(data_B[i, :])
+#    input()
+
+imshow(data_B.T, vmin=-0.12, vmax=0.12, aspect=1/10000, extent=((tvec+delay_Haskel)[0], (tvec+delay_Haskel)[-1], zvec_rec[0], zvec_rec[-1]))
+plt.xlim((0, 0.08))
+plt.xticks((0, 0.01, 0.08))
+plt.margins(0.5, 0)
+colorbar()
+
+
+show()
+#hold on;plot([0 0.02],[0 0],'k--')
+#h = colorbar;ylabel(h,'Pressure (Pa)')
+#title("Borehole response")
+#ylabel('Receiver depth (m)');xlabel('Time (s)')
+#axis([0 0.02 -20 20])
+#pbaspect([1 2 1])
+#
+#subplot(4,1,3),plot(tvec+delay_Haskel,data_B(:,irec_H1))
+#hold on;plot([0.003 0.004],[1 1]*p_direct0,'k-','linewidth',2)
+#hold on;plot([0.013 0.014],[1 1]*p_gen0,'k-','linewidth',2)
+#xlabel('Lapse time (s)')
+#ylabel('Pressure (Pa)')
+#title('-10.05m')
+#tmpa = axis;axis([0 0.02 -0.12 0.1])
+#grid on;
+#
+#subplot(4,1,4),plot(tvec+delay_Haskel,data_B(:,irec_H2))
+#hold on;plot([0.008 0.009],[1 1]*p_direct0,'k-','linewidth',2)
+#hold on;plot([0.013 0.014],[1 1]*p_gen0,'k-','linewidth',2)
+#xlabel('Lapse time (s)')
+#ylabel('Pressure (Pa)')
+#title('+10.05m')
+#tmpa = axis;axis([0 0.02 -0.12 0.1])
+#grid on;
+#
+#print(gcf,'Modeling_VSP_tubewave_Caliper_Change.png','-dpng')
