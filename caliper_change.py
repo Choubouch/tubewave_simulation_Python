@@ -24,7 +24,7 @@ Kf = Rhof*(Vf**2)
 Phivec = 0.3*np.ones(n)
 Kappa0_vec = np.zeros(n)
 
-zvec_rec = np.arange(-100.05, 100.05 + 0.1, 0.1)
+zvec_rec = np.arange(-20.05, 20.05 + 0.1, 0.1)
 dt = 0.25e-4
 ns = 16001
 
@@ -146,6 +146,7 @@ for iw in range(1, nw_proc):
     kp = w/Vpvec
 
     tmp = np.sqrt(1j*w*TFvec)
+
     PHI_IONOV = (1/tmp) * besselk(1, tmp) / besselk(0, tmp)
 
     CTvec = CT0vec * np.sqrt(1/(1+2*Phivec*Rhof/Kf*CT0vec**2 * PHI_IONOV))
@@ -292,7 +293,6 @@ for iw in range(1, nw_proc):
 
     for i_n in range(n-2, -1, -1):
         uvec[:,i_n] = Mn[:,:,i_n]@uvec[:,i_n+1]+Sn[:,i_n]      
-
     uvec_allfreq[:,:,iw] = uvec
 
 fdata = np.zeros((zvec_rec.size , ns), dtype=np.complex128)
@@ -434,6 +434,7 @@ fdata = np.conj(fdata); #Aki-Richards FT -> MATLAB FT
 fdata[:, 1:] = fdata[:, 1:] + np.conj(np.flip(fdata[:, 1:], axis=1)) #tour de passe-passe pour avoir la symétrie des données 
 data = (np.fft.ifft(fdata, axis=1)).real
 data_B = data.T
+
 #if(VERBOSE_FIG):
 #    figure;imagesc(zvec_rec,tvec,data_B);colorbar;
 #    title("Borehole response")
@@ -511,13 +512,13 @@ print('Output result is saved as Modeling_VSP_tubewave_Caliper_Change.png')
 #    print(data_B[i, :])
 #    input()
 
-imshow(data_B.T, vmin=-0.12, vmax=0.12, aspect=1/10000, extent=((tvec+delay_Haskel)[0], (tvec+delay_Haskel)[-1], zvec_rec[0], zvec_rec[-1]))
+imshow(data_B.T[::2, ::2], vmin=-0.12, vmax=0.12, aspect=1/10000, extent=((tvec+delay_Haskel)[0], (tvec+delay_Haskel)[-1], zvec_rec[0], zvec_rec[-1]))
 plt.xlim((0, 0.08))
 plt.xticks((0, 0.01, 0.08))
 plt.margins(0.5, 0)
 colorbar()
 
-
+#plt.savefig("jaaj")
 show()
 #hold on;plot([0 0.02],[0 0],'k--')
 #h = colorbar;ylabel(h,'Pressure (Pa)')
