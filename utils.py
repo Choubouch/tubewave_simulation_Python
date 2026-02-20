@@ -1,6 +1,7 @@
 import numpy as np
 from scipy.special import kv as besselk
-from typing import List
+from typing import Tuple, Any
+
 
 def createRickerWavelet(f0, tvec):
     """
@@ -11,24 +12,17 @@ def createRickerWavelet(f0, tvec):
     Returns :
         fRicker
     """
-    print("f0" + str(f0))
-    print("Tvec 0-20")
-    input()
     delay = 1/f0*2
     Ricker = 2 * np.pi**2 * f0**2 * (1.0 - 2.0 * (np.pi**2) * (f0**2) * ((tvec - delay)**2)) * np.exp(-(np.pi**2) * (f0**2) * ((tvec - delay)**2))
-    print("Ricker")
-    print(Ricker[:20])
-    input()
     Ricker = Ricker/np.max(np.abs(Ricker))
     fRicker = np.conj(np.fft.fft(Ricker))
     return fRicker
 
-    
-def createElasticWavefield(n, zn_proc, wvec_proc, Rhovec, Vpvec, shift_z):
+
+def getElasticWavefield(n, zn_proc, wvec_proc, Rhovec, Vpvec, shift_z):
     """
     Parameters :
         n, kp1, kp2, z1, rho1, rho2
-    
     Returns :
         Mn and MT matrix
     """
@@ -48,11 +42,10 @@ def createElasticWavefield(n, zn_proc, wvec_proc, Rhovec, Vpvec, shift_z):
             rho2 = Rhovec[i_n+1]
             a1 = rho2/rho1
             a2 = kp2/kp1 
-            m11 = 1.0/(2.0)*(a1+a2)*np.exp(1j*(kp1-kp2)*z1) 
-            m12 = 1.0/(2.0)*(a1-a2)*np.exp(1j*(kp1+kp2)*z1) 
-            m21 = 1.0/(2.0)*(a1-a2)*np.exp(-1j*(kp1+kp2)*z1) 
-            m22 = 1.0/(2.0)*(a1+a2)*np.exp(-1j*(kp1-kp2)*z1) 
-            
+            m11 = 1.0/(2.0)*(a1+a2)*np.exp(1j*(kp1-kp2)*z1)
+            m12 = 1.0/(2.0)*(a1-a2)*np.exp(1j*(kp1+kp2)*z1)
+            m21 = 1.0/(2.0)*(a1-a2)*np.exp(-1j*(kp1+kp2)*z1)
+            m22 = 1.0/(2.0)*(a1+a2)*np.exp(-1j*(kp1-kp2)*z1)
             Mn[:,:,i_n] = np.array([[m11, m12], [m21, m22]], dtype=np.complex128)
 
         MT = np.eye(2)
@@ -61,7 +54,6 @@ def createElasticWavefield(n, zn_proc, wvec_proc, Rhovec, Vpvec, shift_z):
         uEvec = np.zeros((2,n), dtype=np.complex128)
 
         D1 = 1/(-Rhovec[1]*w**2)
-        
         D1 = D1 * np.exp(1j*kp[1]*(-shift_z))
 
         Dn = D1/MT[1, 1]
@@ -77,28 +69,8 @@ def createElasticWavefield(n, zn_proc, wvec_proc, Rhovec, Vpvec, shift_z):
 
     return uEvec_allfreq
 
-def createMMatrixPressureField(n, k1, k2, z1, r1, r2):
-    """
-    Parameters :
-        n, k1, k2, z1, r1, r2
 
-    Returns :
-        Mn
-
-    """
-    Mn = np.zeros((2, 2, n-1), dtype=np.complex128)
-    for i_n in range(n-1):
-        a1=r1**2*k1+r2**2*k2
-        a2=r1**2*k1-r2**2*k2
-        m11=a1*np.exp(1j*(k1-k2)*z1) 
-        m12=a2*np.exp(1j*(k1+k2)*z1) 
-        m21=a2*np.exp(-1j*(k1+k2)*z1) 
-        m22=a1*np.exp(-1j*(k1-k2)*z1) 
-
-        Mn[:,:,i_n]=1/(2*r1**2*k1)*np.array([[m11, m12], [m21, m22]])
-    return Mn
-
-def getTubewavePotential(argsList : List[float]):
+def getFluidResponse(argsList: Tuple[Any, ...]):
     """
     argsList = ( Kf, n, Rhof, rn, uEvec_allfreq, nw_proc, wvec_proc, zn_proc, CT0vec, Evec, Kappa0_vec, Kvec, Phivec, TFvec, Vpvec, Vsvec)
     NB : Cy_square, E1 removed (useless)
@@ -122,29 +94,26 @@ def getTubewavePotential(argsList : List[float]):
 
         Mn = np.zeros((2, 2, n-1), dtype=np.complex128)
         for i_n in range(n-1):
-            r1=rn[i_n]
-            r2=rn[i_n+1]
-            k1=kn[i_n]
-            k2=kn[i_n+1]
-            z1=zn_proc[i_n]
-    
-            a1=r1**2*k1+r2**2*k2
-            a2=r1**2*k1-r2**2*k2
-            
-            m11=a1*np.exp(1j*(k1-k2)*z1) 
-            m12=a2*np.exp(1j*(k1+k2)*z1) 
-            m21=a2*np.exp(-1j*(k1+k2)*z1) 
-            m22=a1*np.exp(-1j*(k1-k2)*z1) 
+            r1 = rn[i_n]
+            r2 = rn[i_n+1]
+            k1 = kn[i_n]
+            k2 = kn[i_n+1]
+            z1 = zn_proc[i_n]
+            a1 = r1**2*k1+r2**2*k2
+            a2 = r1**2*k1-r2**2*k2
+            m11 = a1*np.exp(1j*(k1-k2)*z1)
+            m12 = a2*np.exp(1j*(k1+k2)*z1)
+            m21 = a2*np.exp(-1j*(k1+k2)*z1)
+            m22 = a1*np.exp(-1j*(k1-k2)*z1)
 
-            Mn[:,:,i_n]=1/(2*r1**2*k1)*np.array([[m11, m12], [m21, m22]])
+            Mn[:,:,i_n] = 1/(2*r1**2*k1)*np.array([[m11, m12], [m21, m22]])
 
         Sn = np.zeros((2, n-1), dtype=np.complex128)
-        for i_n in range(n-1):      
+        for i_n in range(n-1):
             r1 = rn[i_n]
             r2 = rn[i_n+1]
             k1 = kn[i_n]
             z1 = zn_proc[i_n]
-            
             kp1 = kp[i_n]
             E1 = Evec[i_n]
             Vp_now = Vpvec[i_n]
@@ -177,7 +146,6 @@ def getTubewavePotential(argsList : List[float]):
                 delta_p_B = Rhof*CT_now*(-1j*w*Porosity_now/Kf*PHI_IONOV_now)*w**2/Vp_now**2*K_now*(D_Eamp*I1+U_Eamp*I2)
                 delta_vz_B = (-1j*w*Porosity_now/Kf*PHI_IONOV_now)*w**2/Vp_now**2*K_now*(D_Eamp*I3+U_Eamp*I4)
 
-                
                 #TODO : traduire le fichier sur skempton 
                 #if(FLAG_SKEMPTON):
                 #    B = PE.B
@@ -186,16 +154,10 @@ def getTubewavePotential(argsList : List[float]):
             else :
                 delta_p_B = 0
                 delta_vz_B = 0           
-            
             #Une seule occurence de Aninv dans le code : inutile
             #Aninv = [np.exp(i*k1*z1)/(2*w^2*Rhof) -np.exp(i*k1*z1)/(2*w*pi*r1^2*k1) np.exp(-i*k1*z1)/(2*w^2*Rhof) np.exp(-i*k1*z1)/(2*w*pi*r1^2*k1)] 
-
-        
-            
             tmpdata = -1j*kp1*U_Eamp.T * np.exp(-1j*kp1*z1)+1j*kp1*D_Eamp.T*np.exp(1j*kp1*z1) 
             tmpdata = -1j*w*tmpdata 
-            
-            
             dVn = np.pi*(r2**2-r1**2)*tmpdata  
             dvz = dVn/(np.pi*r1**2) 
                             

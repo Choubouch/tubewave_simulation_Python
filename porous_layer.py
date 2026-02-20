@@ -1,7 +1,6 @@
 import utils
 import numpy as np
 from numpy import pi as PI
-from scipy.special import kv as besselk
 import matplotlib.pyplot as plt
 
 VERBOSE_FIG = 0
@@ -11,7 +10,7 @@ n = 5  # Total number of layers
 Vpvec = np.array([5000, 5000, 5000, 5000, 5000], dtype=np.complex128) # size n. P-wave velocity at each layer (m/s)
 Vsvec = np.array([3000, 3000, 3000, 3000, 3000], dtype=np.complex128) # size n. S-wave velocity at each layer (m/s)
 Rhovec = np.array([2500, 2500, 2500, 2500, 2500], dtype=np.complex128) #Bulk density at each layer (kg/m3)
-zn_org = np.array([10, 19.5, 20.5, 50]) # size n-1. The depth of boundaries (m). 
+zn_org = np.array([0, 19.5, 20.5, 50]) # size n-1. The depth of boundaries (m). 
 rn = 0.055*np.ones(n) #size n. Borehole radius (m)
 
 
@@ -30,7 +29,7 @@ Rhovec[2] = 2.5001e3
 
 #TODO implémenter PE hein
 
-zvec_rec = np.arange(-10, 70 + 0.2, 0.2)
+zvec_rec = np.arange(0, 70 + 0.2, 0.2)
 dt = 0.25e-4
 ns = 16001
 
@@ -45,12 +44,13 @@ f0 = 200
 delay = 1/f0*2
 
 fRicker = utils.createRickerWavelet(f0, tvec)
-
+print(fRicker.size)
+input()
 shift_z = 0
 zn_proc = zn_org + shift_z
 
 uEvec_allfreq = np.zeros((2, n, nw_proc), dtype=np.complex128)
-uEvec_allfreq = utils.createElasticWavefield(n, zn_proc, wvec_proc, Rhovec, Vpvec, shift_z) #ça c'est bon: bah non justemtn
+uEvec_allfreq = utils.getElasticWavefield(n, zn_proc, wvec_proc, Rhovec, Vpvec, shift_z) #ça c'est bon: bah non justemtn
 # Necessary elastic moduli and velocities
 Evec = Rhovec * Vsvec**2 * (3 * Vpvec**2 - 4 * Vsvec**2) / (Vpvec**2 - Vsvec**2)
 mu_vec = Rhovec * Vsvec**2  
@@ -64,7 +64,11 @@ TFvec = rn**2 / Diffvec**2
 
 uvec_allfreq = np.zeros((2, n, nw_proc), dtype=np.complex128)
 argsList = (Kf, n, Rhof, rn, uEvec_allfreq, nw_proc, wvec_proc, zn_proc, CT0vec, Evec, Kappa0_vec, Kvec, Phivec, TFvec, Vpvec, Vsvec)
-uvec_allfreq = utils.getTubewavePotential(argsList)
+for i, arg in enumerate(argsList):
+    print("bible  " + str(i))
+    print(arg)
+    input()
+uvec_allfreq = utils.getFluidResponse(argsList)
 argsList = (FLAG_SKEMPTON, nw_proc, fRicker, Rhof, Kf, n, ns, shift_z, zn_proc, Kappa0_vec, Kvec, CT0vec, Evec, Vpvec, Vsvec, uEvec_allfreq, Phivec, TFvec, uvec_allfreq, wvec_proc, zvec_rec)
 delay_Haskel = -0.004
 data_B = utils.getTimeDomainWaveformBorehole(argsList)
