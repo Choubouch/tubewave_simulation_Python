@@ -19,6 +19,15 @@ def createRickerWavelet(f0, tvec):
     return fRicker
 
 
+def getSkemptonCoefficient(kf, phi, vpDry=5170., vsDry=3198.,
+                           grainDensity=3143., ks=10e10):
+    rhoDry = (1-phi)*grainDensity
+    G = vsDry**2*rhoDry
+    kDry = vpDry**2*rhoDry - 4/3*G
+    B = (1/kDry - 1/ks)/(1/kDry - 1/ks+phi*(1/kf - 1/ks))
+    return B
+
+
 def getElasticWavefield(n, zn_proc, wvec_proc, Rhovec, Vpvec, shift_z):
     """
     Parameters :
@@ -75,17 +84,18 @@ def getFluidResponse(argsList: Tuple[Any, ...]):
     argsList = ( Kf, n, Rhof, rn, uEvec_allfreq, nw_proc, wvec_proc, zn_proc, CT0vec, Evec, Kappa0_vec, Kvec, Phivec, TFvec, Vpvec, Vsvec)
     NB : Cy_square, E1 removed (useless)
     """
+    FLAG_SKEMPTON = 1
     Kf, n, Rhof, rn, uEvec_allfreq, nw_proc, wvec_proc, zn_proc, CT0vec, Evec, Kappa0_vec, Kvec, Phivec, TFvec, Vpvec, Vsvec = argsList
     uvec_allfreq = np.zeros((2, n, nw_proc), dtype=np.complex128)
     for iw in range(1, nw_proc):
         w = wvec_proc[iw]
         kp = w/Vpvec
 
-        tmp = np.sqrt(1j*w*TFvec)
-        tmp = tmp.astype(np.complex128)
-        PHI_IONOV = (1/tmp) * besselk(1., tmp) / besselk(0., tmp)
-
-        CTvec = CT0vec * np.sqrt(1/(1+2*Phivec*Rhof/Kf*CT0vec**2 * PHI_IONOV))
+        with np.errstate(divide='ignore', invalid='ignore'):
+            tmp = np.sqrt(1j*w*TFvec)
+            tmp = tmp.astype(np.complex128)
+            PHI_IONOV = (1/tmp) * besselk(1., tmp) / besselk(0., tmp)
+            CTvec = CT0vec * np.sqrt(1/(1+2*Phivec*Rhof/Kf*CT0vec**2 * PHI_IONOV))
 
         CTvec[Kappa0_vec == 0] = CT0vec[Kappa0_vec == 0]
         CTvec = np.conj(CTvec)
@@ -147,11 +157,11 @@ def getFluidResponse(argsList: Tuple[Any, ...]):
                 delta_vz_B = (-1j*w*Porosity_now/Kf*PHI_IONOV_now)*w**2/Vp_now**2*K_now*(D_Eamp*I3+U_Eamp*I4)
 
                 #TODO : traduire le fichier sur skempton 
-                #if(FLAG_SKEMPTON):
-                #    B = PE.B
-                #    delta_p_B = B*delta_p_B
-                #    delta_vz_B = B*delta_vz_B   
-            else :
+                if (FLAG_SKEMPTON):
+                    B = getSkemptonCoefficient(Kf, 0.3)
+                    delta_p_B = B*delta_p_B
+                    delta_vz_B = B*delta_vz_B
+            else:
                 delta_p_B = 0
                 delta_vz_B = 0           
             #Une seule occurence de Aninv dans le code : inutile
@@ -300,15 +310,15 @@ def getTimeDomainWaveformBorehole(argsList):
         Vp_now = Vpvec[in_now]
         Vs_now = Vsvec[in_now]
 
-
+        with np.errstate(divide='ignore', invalid='ignore'):
         #Integration element I1:
-        I1 = np.exp(1j*k1vec*z1)/1j/(-k1vec+kp1vec)*(np.exp(1j*(-k1vec+kp1vec)*z1)-np.exp(1j*(-k1vec+kp1vec)*z0))-np.exp(-1j*k1vec*z1)/1j/(k1vec+kp1vec)*(np.exp(1j*(k1vec+kp1vec)*z1)-np.exp(1j*(k1vec+kp1vec)*z0))
+            I1 = np.exp(1j*k1vec*z1)/1j/(-k1vec+kp1vec)*(np.exp(1j*(-k1vec+kp1vec)*z1)-np.exp(1j*(-k1vec+kp1vec)*z0))-np.exp(-1j*k1vec*z1)/1j/(k1vec+kp1vec)*(np.exp(1j*(k1vec+kp1vec)*z1)-np.exp(1j*(k1vec+kp1vec)*z0))
         #Integration element I2:
-        I2 = np.exp(1j*k1vec*z1)/1j/(-k1vec-kp1vec)*(np.exp(1j*(-k1vec-kp1vec)*z1)-np.exp(1j*(-k1vec-kp1vec)*z0))-np.exp(-1j*k1vec*z1)/1j/(k1vec-kp1vec)*(np.exp(1j*(k1vec-kp1vec)*z1)-np.exp(1j*(k1vec-kp1vec)*z0))
+            I2 = np.exp(1j*k1vec*z1)/1j/(-k1vec-kp1vec)*(np.exp(1j*(-k1vec-kp1vec)*z1)-np.exp(1j*(-k1vec-kp1vec)*z0))-np.exp(-1j*k1vec*z1)/1j/(k1vec-kp1vec)*(np.exp(1j*(k1vec-kp1vec)*z1)-np.exp(1j*(k1vec-kp1vec)*z0))
         #Integration element I3:
-        I3 = np.exp(1j*k1vec*z1)/1j/(-k1vec+kp1vec)*(np.exp(1j*(-k1vec+kp1vec)*z1)-np.exp(1j*(-k1vec+kp1vec)*z0))+np.exp(-1j*k1vec*z1)/1j/(k1vec+kp1vec)*(np.exp(1j*(k1vec+kp1vec)*z1)-np.exp(1j*(k1vec+kp1vec)*z0))
+            I3 = np.exp(1j*k1vec*z1)/1j/(-k1vec+kp1vec)*(np.exp(1j*(-k1vec+kp1vec)*z1)-np.exp(1j*(-k1vec+kp1vec)*z0))+np.exp(-1j*k1vec*z1)/1j/(k1vec+kp1vec)*(np.exp(1j*(k1vec+kp1vec)*z1)-np.exp(1j*(k1vec+kp1vec)*z0))
         #Integration element I4:
-        I4 = np.exp(1j*k1vec*z1)/1j/(-k1vec-kp1vec)*(np.exp(1j*(-k1vec-kp1vec)*z1)-np.exp(1j*(-k1vec-kp1vec)*z0))+np.exp(-1j*k1vec*z1)/1j/(k1vec-kp1vec)*(np.exp(1j*(k1vec-kp1vec)*z1)-np.exp(1j*(k1vec-kp1vec)*z0))
+            I4 = np.exp(1j*k1vec*z1)/1j/(-k1vec-kp1vec)*(np.exp(1j*(-k1vec-kp1vec)*z1)-np.exp(1j*(-k1vec-kp1vec)*z0))+np.exp(-1j*k1vec*z1)/1j/(k1vec-kp1vec)*(np.exp(1j*(k1vec-kp1vec)*z1)-np.exp(1j*(k1vec-kp1vec)*z0))
         
         if(Kappa0_vec[in_now] != 0):
             CT_now = CTvec #vector
@@ -323,7 +333,8 @@ def getTimeDomainWaveformBorehole(argsList):
         U_Eamp = U_Eamp.T
         D_Eamp = D_Eamp.T   
 
-        A1P = wvec_proc**2/kp1vec*(1/(2*Vs_now**2)-1/Vp_now**2)
+        with np.errstate(divide='ignore', invalid='ignore'):
+            A1P = wvec_proc**2/kp1vec*(1/(2*Vs_now**2)-1/Vp_now**2)
         delta_p_A = -1j*wvec_proc*Rhof*CT_now*kp1vec*A1P*(D_Eamp*I1+U_Eamp*I2)
         #the discontinuities (delta_p and delta_vz) due to a porous layer 
         #(PHI_IONOV_now from Aki-Richards FT)
@@ -334,8 +345,7 @@ def getTimeDomainWaveformBorehole(argsList):
             delta_p_B = Rhof*CT_now*(-1j*wvec_proc*Porosity_now/Kf*np.conj(PHI_IONOV))*wvec_proc**2/Vp_now**2*K_now*(D_Eamp*I1+U_Eamp*I2) #BUGFIX
         
             ##Option B
-            if(FLAG_SKEMPTON):
-                continue
+            if (FLAG_SKEMPTON):
                     # The following two lines calculates the Skempton coefficient (B)
                     # assuming the given Vp and Vs to be those in the drained condition.
                     # This is not recommed.
@@ -344,11 +354,11 @@ def getTimeDomainWaveformBorehole(argsList):
                     # The following line uses the Skempton coefficient (B) 
                     # provided in PE.B (recommed)
                     #TODO : comme le todo d'avant là
-                    #B = PE.B
+                B = getSkemptonCoefficient(Kf, 0.3)
                     #Application of the Skempton coefficient (B)
-                    #delta_p_B = B*delta_p_B
+                delta_p_B = B*delta_p_B
         
-        else:  
+        else:
             delta_p_B = 0
         
         
