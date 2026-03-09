@@ -2,7 +2,8 @@ import numpy as np
 import utils
 import copy
 import os
-
+import time
+from line_profiler import LineProfiler
 
 class Layer:
     def __init__(self, kind: str, zTop: float, zBottom: float, porosity: float,
@@ -245,18 +246,16 @@ class MeasurementConfiguration:
         self.receiverGap = 0.1
         self.receiverDepth = np.arange(self.receiverMinDepth, self.receiverMaxDepth + self.receiverGap,
                                        self.receiverGap)
-        self.dt = 0.25e-4
-        self.timeSampleNumber = 16001
-        self.sampledTimes = np.arange(0, (self.timeSampleNumber-1)*self.dt + self.dt,
-                                      self.dt)
-        self.dw = 1/self.sampledTimes[-1]*2*np.pi
-        self.frequencySampleNumber = 300
-        self.sampledFrequencies = np.arange(0,
-                                            ((self.timeSampleNumber-1)*self.dw
-                                             + self.dw),
-                                            self.dw)[0:self.frequencySampleNumber]
-        self.centerFrequency = 200
+        self.centerFrequency = 400 #100
+        self.dt = 1/(2*self.centerFrequency*100)  # 0.25e-4
         self.delay = 1/self.centerFrequency*2
+        self.timeSampleNumber = 16001 #1601*4
+        print((self.timeSampleNumber-1)*self.dt + self.dt)
+        self.sampledTimes = np.arange(0, (self.timeSampleNumber-1)*self.dt + self.dt, self.dt)
+        self.dw = 1/self.sampledTimes[-1]*2*np.pi
+        self.frequencySampleNumber = 300*self.timeSampleNumber//16001  #300*4 #300*4
+        self.sampledFrequencies = np.arange(0, ((self.timeSampleNumber-1)*self.dw + self.dw),
+                                            self.dw)[0:self.frequencySampleNumber]
         self.wavelet = np.zeros_like(self.sampledTimes)
 
     def initializeWavelet(self, waveletFunction=utils.createRickerWavelet):
@@ -269,6 +268,29 @@ class MeasurementConfiguration:
         self.receiverDepth = np.arange(self.receiverMinDepth, self.receiverMaxDepth + self.receiverGap,
                                        self.receiverGap)
 
+    def setFrequency(self, freq):
+        self.centerFrequency = freq
+        self.dt = 1/(2*self.centerFrequency*100)  # 0.25e-4
+        self.delay = 1/self.centerFrequency*2
+        self.sampledTimes = np.arange(0, (self.timeSampleNumber-1)*self.dt + self.dt,
+                                      self.dt)
+        self.dw = 1/self.sampledTimes[-1]*2*np.pi
+        self.frequencySampleNumber = 300*self.timeSampleNumber//16001  #300*4
+        self.sampledFrequencies = np.arange(0,
+                                            ((self.timeSampleNumber-1)*self.dw
+                                             + self.dw),
+                                            self.dw)[0:self.frequencySampleNumber]
+
+    def setTimeSampleNumber(self, num):
+        self.timeSampleNumber = num
+        self.sampledTimes = np.arange(0, (self.timeSampleNumber-1)*self.dt + self.dt,
+                                      self.dt)
+        self.dw = 1/self.sampledTimes[-1]*2*np.pi
+        self.frequencySampleNumber = 300*self.timeSampleNumber//16001
+        self.sampledFrequencies = np.arange(0,
+                                            ((self.timeSampleNumber-1)*self.dw
+                                             + self.dw),
+                                            self.dw)[0:self.frequencySampleNumber]
 
 class BoreholeConfiguration:
     """
@@ -376,12 +398,15 @@ class Solver():
         rhoFluid = tube.fluid.initialDensity  # Rhof
 
         # uEvec_allfreq
-        elasticWavefieldAmplitude = utils.getElasticWavefield(nlayer,
+        #print("Elastic")
+        #vieuxTemps = time.time()
+        elasticWavefieldAmplitude = utils.getElasticWavefieldOpt(nlayer,
                                                               zBoundaries,
                                                               frequencies,
                                                               rhoTube,
                                                               vp,
                                                               zShift)
+        #print(time.time() - vieuxTemps)
         # Necessary elastic moduli and velocities
         E = rhoTube * vs**2 * (3 * vp**2 - 4 * vs**2) / (vp**2 - vs**2)
         mu = rhoTube * vs**2
@@ -396,14 +421,24 @@ class Solver():
         argsList = (kf, nlayer, rhoFluid, radius, elasticWavefieldAmplitude,
                     nFrequencies, frequencies, zBoundaries, ct0, E, kappaTube,
                     k, phi, relativeDiffusivity, vp, vs)
+        #print("BoreHole response")
+        #vieuxTemps = time.time()
         tubewaveAmplitudes = utils.getFluidResponse(argsList)  # uvec_allfreq
-
+        #print(time.time() - vieuxTemps)
         argsList = (1, nFrequencies, wavelet, rhoFluid, kf, nlayer,
                     nTimes, 0, zBoundaries, kappaTube, k, ct0,
                     E, vp, vs, elasticWavefieldAmplitude, phi,
                     relativeDiffusivity, tubewaveAmplitudes, frequencies,
                     zMeas)
-        solution = utils.getTimeDomainWaveformBorehole(argsList)
+        #print("Sol")
+        #vieuxTemps = time.time()
+        # a mediter 
+        # lp = LineProfiler()
+        solution = utils.getTimeDomainWaveformBoreholeOptV2(argsList)
+        # lp_wrapper = lp(utils.getTimeDomainWaveformBoreholeOptV2)
+        # lp_wrapper(argsList)
+        # lp.print_stats(output_unit=1e-3)
+        #print(time.time() - vieuxTemps)
         return solution
 
 
